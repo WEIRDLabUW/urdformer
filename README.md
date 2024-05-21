@@ -94,7 +94,7 @@ If you are on a headless mode, run:
 ```bash
 python demo.py --scene_type object --texture --headless
 ```
-This will save images into the folder `headless`
+This will save images into the folder `visualization`
 
 If you are running this the first time, this might take a few minutes to download pretrained weights.
 ## Details

@@ -40,6 +40,12 @@ pip install -r requirements.txt
 4 . Install pytorch version based on your cuda version. We only tested URDFormer on torch==1.12.1+cu113. 
 
 5 . Download all the checkpoints
+
+[Option 1] You can either use the download script (this may take about 10 mins):
+```bash
+python download.py
+```
+[Option 2] or steps as below:
 [Download link](https://drive.google.com/drive/folders/1FPlE1ui2jqjOcaflBZ-9K11YBV_1mD_f?usp=sharing)
 First create two folders to save pretrained models:
 ```bash
@@ -67,11 +73,11 @@ urdformer/
 │   └── object_souped.pth
 ...
 ```
-6 . Install packages required for running GroundingDINO
+6 . Install packages required for running GroundingDINO (tested on 1.12.1+cu113). If you have torch 2.1.0+c12.1, use `mim install "mmcv<2.2.0"`
 ```bash
 pip install -U openmim
 mim install mmengine
-mim install "mmcv>=2.0.0"
+mim install "mmcv>=2.0.0" 
 
 cd grounding_dino
 pip install -v -e .
@@ -84,9 +90,15 @@ If you just want to visualize examples we provide, simply run:
 ```bash
 python demo.py --scene_type object --texture
 ```
+If you are on a headless mode, run:
+```bash
+python demo.py --scene_type object --texture --headless
+```
+This will save images into the folder `headless`
+
 If you are running this the first time, this might take a few minutes to download pretrained weights.
 ## Details
-Put all your images under `images`, and the urdf predictions by default will be saved under `output`. URDFormer is only trained on 5 categories of 
+Put all your images under `images`, and the urdf predictions by default will be saved under `output`. We only release the checkpoint that's trained on 5 categories of 
 objects: "cabinet", "oven", "dishwasher", "fridge" and "washer" (see `groundingdino/detection.py`), and one type of global scene "kitchen". 
 Disclaimer: URDFormer was trained on dataset of objects with handles, so it works better on kitchens when handles on the cabinets are visible.
 

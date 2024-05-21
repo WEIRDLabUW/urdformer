@@ -255,8 +255,8 @@ def traj_camera(view_matrix):
     rgb = np.array(color)[:,:, :3]
     return rgb
 
-def animate(object_id, link_orientations):
-    # os.makedirs(save_path, exist_ok=True)
+def animate(object_id, link_orientations, test_name, headless = False):
+
     for i in range(20):
         for jid in range(p.getNumJoints(object_id)):
             ji = p.getJointInfo(object_id, jid)
@@ -271,11 +271,11 @@ def animate(object_id, link_orientations):
                 else:
                     jointpos = np.random.uniform(-0.7, -0.25)
                 p.resetJointState(object_id, jid, jointpos)
-        # if if_save:
-        #     view_matrix = get_camera_parameters_move(i)
-        #     rgb = traj_camera(view_matrix)
-        #
-        #     PIL.Image.fromarray(rgb).save(f"{save_path}/{i}.png")
+        if headless:
+            os.makedirs(f"visualization/{test_name}", exist_ok=True)
+            view_matrix = get_camera_parameters_move(i)
+            rgb = traj_camera(view_matrix)
+            PIL.Image.fromarray(rgb).save(f"visualization/{test_name}/{i}.png")
 
         time.sleep(0.5)
 def process_prediction(part_meshes, part_positions_starts, part_positions_ends, part_relations, base_pred):
@@ -305,7 +305,7 @@ def process_prediction(part_meshes, part_positions_starts, part_positions_ends, 
 
 
 
-def kitchen_prediction(img_path, global_label_path, urdformer_global, urdformer_obj, device, with_texture, if_random):
+def kitchen_prediction(img_path, global_label_path, urdformer_global, urdformer_obj, device, with_texture, if_random, headless=False):
     gt_info = {}
     pred_info = {}
     all_link_orientations = []
@@ -496,7 +496,7 @@ def kitchen_prediction(img_path, global_label_path, urdformer_global, urdformer_
         p.changeVisualShape(layout, -1, rgbaColor=(1, 1, 1, 1), textureUniqueId=base_tex)
 
     objs = p.getNumBodies()
-    # os.makedirs(f"{save_name}", exist_ok=True)
+
 
     for i in range(20):
         for obj in range(objs - 5):
@@ -514,15 +514,16 @@ def kitchen_prediction(img_path, global_label_path, urdformer_global, urdformer_
                         jointpos = np.random.uniform(-0.7, -0.25)
                     p.resetJointState(obj, jid, jointpos)
             time.sleep(0.2)
-        # rgb = get_kitchen_image()
-        # PIL.Image.fromarray(rgb).save(f"{save_name}/{i}.png")
+        if headless:
+            os.makedirs(f"visualization/{test_name}", exist_ok=True)
+            rgb = get_kitchen_image()
+            PIL.Image.fromarray(rgb).save(f"visualization/{test_name}/{i}.png")
     print("press enter to quit")
     input() # make a pause
 
 
 
-def object_prediction(img_path, label_final_dir, urdformer_part, device, with_texture, if_random
-                      ):
+def object_prediction(img_path, label_final_dir, urdformer_part, device, with_texture, if_random, headless=False):
 
     parent_pred_parts = []
     position_pred_end_parts = []
@@ -579,17 +580,20 @@ def object_prediction(img_path, label_final_dir, urdformer_part, device, with_te
 
 
 
-    animate(object_id, link_orientations)
+    animate(object_id, link_orientations, test_name, headless=headless)
 
     root = "meshes/cabinet.obj"
 
     time.sleep(1)
 
-def evaluate(args, with_texture=False):
+def evaluate(args, with_texture=False, headless = False):
     device = "cuda"
     input_path = args.image_path
     label_dir = "grounding_dino/labels_manual"
-    physicsClient = p.connect(p.GUI)
+    if headless:
+        physicsClient = p.connect(p.DIRECT)
+    else:
+        physicsClient = p.connect(p.GUI)
     p.setGravity(0, 0, -10)
     p.configureDebugVisualizer(1, lightPosition=(1250, 100, 2000), rgbBackground=(1, 1, 1))
 
@@ -612,18 +616,17 @@ def evaluate(args, with_texture=False):
     for img_path in glob.glob(input_path+"/*"):
         p.resetSimulation()
         test_name = os.path.basename(img_path)[:-4]
-        # save_name = f"/home/zoeyc/github/urdformer_release/release_media/kitchen_animation/{test_name}"
-        # if os.path.exists(save_name):
-        #     continue
+
         if args.scene_type=="kitchen":
-            kitchen_prediction(img_path, label_dir+f"/all/{test_name}.npy", urdformer_global, urdformer_part, device, with_texture, args.random)
+            kitchen_prediction(img_path, label_dir+f"/all/{test_name}.npy", urdformer_global, urdformer_part, device, with_texture, args.random, headless=headless)
         else:
-            object_prediction(img_path, label_dir, urdformer_part, device, with_texture, args.random)
+            object_prediction(img_path, label_dir, urdformer_part, device, with_texture, args.random, headless=headless)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--texture', action='store_true', help='adding texture')
+    parser.add_argument('--headless', action='store_true', help='option to run in headless mode')
     parser.add_argument('--scene_type', '--scene_type', default='cabinet', type=str)
     parser.add_argument('--image_path', '--image_path', default='images', type=str)
     parser.add_argument('--random', '--random', action='store_true', help='use random meshes from partnet?')
@@ -634,7 +637,7 @@ def main():
     # apply model soup for the pretrained and finetuned GroundingDINO. However, the performance of bbox prediction is not gauranteed and will be our future work.
 
     args = parser.parse_args()
-    evaluate(args, with_texture=args.texture)
+    evaluate(args, with_texture=args.texture, headless=args.headless)
 
 
 if __name__ == "__main__":

@@ -160,7 +160,8 @@ Details on how to generate data and train URDFormer are coming soon!
 @misc{urdformer_2024,
     title={URDFormer: A Pipeline for Constructing Articulated Simulation Environments from Real-World Images},
     author  = {Zoey Chen and Aaron Walsman and Marius Memmel and Kaichun Mo and Alex Fang and Karthikeya Vemuri and Alan Wu and Dieter Fox and Abhishek Gupta},
-    year = {2024},
+    journal={arXiv preprint arXiv:2405.11656},    
+year = {2024},
 }
 ```
 

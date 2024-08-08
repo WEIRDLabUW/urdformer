@@ -471,6 +471,7 @@ def evaluate(device, data_path, asset_path, test_id, urdformer_global, urdformer
 def main():
     device = "cuda"
     scene_name = "kitchens"
+    asset_path = "/home/zoeyc/github/urdformer_release/reality_gym_private/assets"
     if_random = False
     texture = True
     physicsClient = p.connect(p.GUI)
@@ -494,10 +495,10 @@ def main():
 
     for test_id in range(54):
         p.resetSimulation()
-        asset_path = "/assets"
+
         data_path = f"/{asset_path}/{scene_name}/labels/label{test_id}.npy" # replace it with your data path
 
         evaluate(device, data_path, asset_path, test_id, urdformer_global, urdformer_part, if_random, texture)
-
+        breakpoint()
 if __name__ == "__main__":
     main()

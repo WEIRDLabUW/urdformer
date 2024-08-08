@@ -353,7 +353,6 @@ def main():
         p.resetSimulation()
         data_path = f"{reality_gym_path}/assets/{scene_name}/labels/label{test_id}.npy" # replace it with your data path
         evaluate(device, data_path, urdformer_global, urdformer_part, if_random)
-        breakpoint()
 
 if __name__ == "__main__":
     main()

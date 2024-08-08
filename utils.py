@@ -96,7 +96,6 @@ def create_articulated_objects(root, root_scale, root_position, root_orientation
             base_texture = "default_textures/inside.jpg"
         else:
             base_texture = os.path.dirname(texture_list[0]) + "/base.png"
-
         base_tex = p.loadTexture(base_texture)
         p.changeVisualShape(obj, -1, rgbaColor=(1, 1, 1, 1), textureUniqueId=base_tex)
     for i in range(p.getNumJoints(obj)):

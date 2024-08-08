@@ -166,7 +166,7 @@ replace `data_path` with your download path. Run:
 ```bash
 python evaluate.py
 ```
-This will show URDFormer predictions on 54 kitchen scenes using manually labeled bounding boxes. 
+This will show URDFormer predictions on 54 kitchen scenes using manually labeled bounding boxes. We already saved all the texture maps for you inside `assets/kitchens/textures`. 
 
 ## Training
 

@@ -10,7 +10,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 from scipy.spatial.transform import Rotation as Rot
 import argparse
-
+import os
 def evaluate_real_image(image_tensor, bbox, masks, tgt_padding_mask, tgt_padding_relation_mask, urdformer, device):
     rgb_input = image_tensor.float().to(device).unsqueeze(0)
     bbox_input = torch.tensor(bbox).float().to(device).unsqueeze(0)
@@ -203,7 +203,126 @@ def process_prediction(position_pred_global, position_pred_end_global,  global_r
 
     return pred_data
 
-def evaluate(device, data_path, urdformer_global, urdformer_obj, if_random):
+def load_kitchen_texture(asset_path, image, test_name, object_id, bboxes):
+    # load the image
+    # get the bounding box for drawer and doors
+    texture_path = f"{asset_path}/kitchens/textures/{test_name}"
+
+    os.makedirs(texture_path + '/{0}'.format(object_id), exist_ok=True)
+
+    # create folder for the texture
+    side_texture = "default_textures/inside.jpg"
+    side_image = cv2.imread(side_texture)
+    texture_list = []
+
+    for bbox_id, each_bbox in enumerate(bboxes):
+        if os.path.exists(texture_path + "/{0}/{1}.png".format(object_id,  bbox_id)):
+            texture_list.append(texture_path + "/{0}/{1}.png".format(object_id, bbox_id))
+            continue
+        threshold1 = 0
+        front_image = image[each_bbox[0]+threshold1:each_bbox[2]-threshold1, each_bbox[1]+threshold1:each_bbox[3]-threshold1]
+        w,h,_ = front_image.shape
+
+        inside_bbox = []
+        for inside_id, each_bbox1 in enumerate(bboxes):
+            if inside_id ==bbox_id:
+                continue
+            if is_inside(each_bbox1, each_bbox):
+                inside_bbox.append(each_bbox1)
+
+        # resize everything to 512x512
+        inpaint_img = PIL.Image.fromarray(front_image).resize((512, 512))
+        inpaint_mask = np.zeros((w,h))
+        threshold = 1
+        for each_inside_bbox in inside_bbox:
+            inpaint_mask[max(0, each_inside_bbox[0] - each_bbox[0]-threshold):each_inside_bbox[2] - each_bbox[0]+threshold, max(0, each_inside_bbox[1] - each_bbox[1]-threshold):each_inside_bbox[3] - each_bbox[1]+threshold]=255
+
+        inpaint_mask = PIL.Image.fromarray(cv2.resize(inpaint_mask, (512, 512), interpolation=cv2.INTER_NEAREST))
+
+        # impaint the texture
+        # inpaint_img = upscale([inpaint_img])[0].resize((512, 512))
+        new_image = in_paint_pipe(prompt="panel texture, original color, smooth texture, Intricately Detailed, 16k, natural lighting, Best Quality, Masterpiece, photorealistic", image=inpaint_img, mask_image=inpaint_mask).images[0]
+
+        if not is_small(each_bbox, 10) or len(bboxes)==1: # use the drawer color to be the base
+            base_image = np.array(new_image.resize((200, 200)))
+            base_texture = np.zeros((600, 600, 3))
+            base_texture[200:400, :200, :] = np.rot90(base_image)
+            base_texture[400:600, 400:600, :] = np.rot90(base_image)
+            base_texture[200:400, 200:400, :] = np.rot90(base_image)
+            base_texture[400:600, 200:400, :] = np.rot90(base_image)
+            base_texture[200:400, 400:600, :] = np.rot90(base_image)
+            base_texture[400:600, :200, :] = np.rot90(base_image)
+            PIL.Image.fromarray(base_texture.astype(np.uint8)).save(
+                texture_path + "/{0}/base.png".format(object_id))
+
+        new_image = np.array(new_image.resize((200, 200)))
+        # putting this together with side images.
+        texture_map = np.zeros((600, 600, 3))
+        texture_map[200:400, :200, :] = np.rot90(new_image)
+        texture_map[400:600, 400:600, :] = np.rot90(new_image)
+        texture_map[200:400, 200:400, :] = np.array(PIL.Image.fromarray(side_image).resize((200, 200)))
+        texture_map[400:600, 200:400, :] = np.array(PIL.Image.fromarray(side_image).resize((200, 200)))
+        texture_map[200:400, 400:600, :] = np.array(PIL.Image.fromarray(side_image).resize((200, 200)))
+        texture_map[400:600, :200, :] = np.array(PIL.Image.fromarray(side_image).resize((200, 200)))
+        # save
+
+
+        PIL.Image.fromarray(texture_map.astype(np.uint8)).save(
+            texture_path + "/{0}/{1}.png".format(object_id, bbox_id))
+        texture_list.append(texture_path + "/{0}/{1}.png".format(object_id, bbox_id))
+    return texture_list
+
+def get_texture(asset_path, scene, test_id):
+    img_path = f"{asset_path}/{scene}/images/test{test_id}.jpg"
+    image_global = np.array(Image.open(img_path).convert("RGB"))
+
+    test_name = os.path.basename(img_path)[:-4]
+    detect_img = image_global.copy()
+    bbox = []
+    data_path = f'assets/{scene}/labels/label{test_id}.npy'
+    data = np.load(data_path, allow_pickle=True).item()
+
+    for boxid, each_bbox in enumerate(data['normalized_bbox']):
+        bbox.append(each_bbox)
+
+        bounding_box = [int(each_bbox[0] * image_global.shape[0]),
+                        int(each_bbox[1] * image_global.shape[1]),
+                        int((each_bbox[0] + each_bbox[2]) * image_global.shape[0]),
+                        int((each_bbox[1] + each_bbox[3]) * image_global.shape[1]),
+                        ]
+
+
+        detect_img = cv2.rectangle(detect_img, (bounding_box[1], bounding_box[0]), (bounding_box[3], bounding_box[2]), (255, 0, 0), 6)
+
+    for mesh_id, each_bbox in enumerate(bbox):
+        # get the cropped image
+        bounding_box = [int(bbox[mesh_id][0] * image_global.shape[0]),
+                        int(bbox[mesh_id][1] * image_global.shape[1]),
+                        int((bbox[mesh_id][0] + bbox[mesh_id][2]) * image_global.shape[0]),
+                        int((bbox[mesh_id][1] + bbox[mesh_id][3]) * image_global.shape[1]),
+                        ]
+        cropped_image = image_global[bounding_box[0]:bounding_box[2], bounding_box[1]:bounding_box[3]]
+
+        all_parts_bbox = []
+        for boxid, each_bbox in enumerate(data['part_normalized_bbox'][mesh_id]):
+            all_parts_bbox.append(each_bbox)
+
+        bbox_parts = []
+        for each_bbox_part in all_parts_bbox:
+            bounding_box_parts = [int(each_bbox_part[0] * cropped_image.shape[0]),
+                                  int(each_bbox_part[1] * cropped_image.shape[1]),
+                                  int((each_bbox_part[0] + each_bbox_part[2]) * cropped_image.shape[0]),
+                                  int((each_bbox_part[1] + each_bbox_part[3]) * cropped_image.shape[1]),
+                                  ]
+            bbox_parts.append(bounding_box_parts)
+
+            # part_global_bbox = [bounding_box_parts[0]+bounding_box[0],bounding_box_parts[2] - bounding_box[0], bounding_box_parts[1] + bounding_box[1],bounding_box_parts[3] - bounding_box[1]]
+            # breakpoint()
+            # detect_img = cv2.rectangle(detect_img, (part_global_bbox[1], part_global_bbox[0]), (part_global_bbox[3], part_global_bbox[2]), (255, 0, 0), 6)
+
+        load_kitchen_texture(asset_path, cropped_image, test_name, mesh_id, bbox_parts)
+
+def evaluate(device, data_path, asset_path, test_id, urdformer_global, urdformer_obj, if_random, texture):
     with torch.no_grad():
         #################### global scene prediction ######################
         num_roots_global = 5
@@ -223,7 +342,7 @@ def evaluate(device, data_path, urdformer_global, urdformer_obj, if_random):
         position_pred_start_parts = []
         mesh_pred_parts = []
         base_types = []
-        texture_list = []
+
         for mesh_id, each_mesh in enumerate(mesh_pred_global):
             each_parent = np.unravel_index(np.argmax(parent_pred_global[num_roots_global + mesh_id]), parent_pred_global[num_roots_global + mesh_id].shape)
 
@@ -266,6 +385,22 @@ def evaluate(device, data_path, urdformer_global, urdformer_obj, if_random):
             scale_pred_part = abs(np.array(size_scale * (position_pred_end_part - position_pred_part) / 12))
             scale_pred_part[:, 1] *= root_scale[1]
             scale_pred_part[:, 2] *= root_scale[2]
+            texture_list = []
+            if texture:
+                '''We already saved all the texture maps for each parts, the way we get them is the same as get_texture.py, with very small modification on path and names, 
+                  but in case you want to run it yourself, you can do:
+                  get_texture(asset_path, scene_name, test_id) 
+                '''
+                label_path = f'{asset_path}/kitchens/labels/label{test_id}.npy'
+                object_info = np.load(label_path, allow_pickle=True).item()
+                bboxes = object_info['part_normalized_bbox'][mesh_id]
+
+                for bbox_id in range(len(bboxes)):
+                    if os.path.exists(f"{asset_path}/kitchens/textures/test{test_id}/{mesh_id}/{bbox_id}.png"):
+                        texture_list.append(
+                            f"{asset_path}/kitchens/textures/test{test_id}/{mesh_id}/{bbox_id}.png")
+                    else:
+                        print('no texture map found!')
 
 
             visualization_parts(p, root_position, root_orientation, root_scale,  base_pred[0], position_pred_part, scale_pred_part, mesh_pred_part, parent_pred_part, texture_list, if_random, filename="output")
@@ -286,16 +421,12 @@ def evaluate(device, data_path, urdformer_global, urdformer_obj, if_random):
                                 int((bbox[0][mesh_id][1] + bbox[0][mesh_id][3]) * image_global.shape[1]),
                                 ]
                 cropped_image = image_global[bounding_box[0]:bounding_box[2], bounding_box[1]:bounding_box[3]]
-                _, _, bbox, masks, _, _, _, _, tgt_padding_mask, tgt_padding_relation_mask = evaluate_full_with_masks(
-                    data_path, num_roots_part)
-
-                img_pil = PIL.Image.fromarray(cropped_image).resize((224, 224))
-                img_transform = image_transform()
-                image_tensor = img_transform(img_pil)
+                image_tensor_part, _, bbox_part, masks_part, tgt_padding_mask_part, tgt_padding_relation_mask_part = evaluate_parts_with_masks(
+                    data_path, cropped_image, num_roots_part, mesh_id)
 
                 position_pred_part, position_pred_end_part, mesh_pred_part, parent_pred_part, base_pred = evaluate_real_image(
-                    image_tensor, bbox, masks, tgt_padding_mask, tgt_padding_relation_mask, urdformer_obj,
-                    device)
+                    image_tensor_part, bbox_part, masks_part, tgt_padding_mask_part, tgt_padding_relation_mask_part,
+                    urdformer_obj, device)
 
                 ##################################################
                 parent_pred_parts.append(np.array(parent_pred_part))
@@ -317,6 +448,19 @@ def evaluate(device, data_path, urdformer_global, urdformer_obj, if_random):
                 scale_pred_part[:, 0] *= root_scale[0]
                 scale_pred_part[:, 2] *= root_scale[2]
 
+                texture_list = []
+                if texture:
+                    ############## load texture if needed ##################
+                    label_path = f'{asset_path}/kitchens/labels/label{test_id}.npy'
+                    object_info = np.load(label_path, allow_pickle=True).item()
+                    bboxes = object_info['part_normalized_bbox'][mesh_id]
+
+                    for bbox_id in range(len(bboxes)):
+                        if os.path.exists(f"{asset_path}/kitchens/textures/test{test_id}/{mesh_id}/{bbox_id}.png"):
+                            texture_list.append(f"{asset_path}/kitchens/textures/test{test_id}/{mesh_id}/{bbox_id}.png")
+                        else:
+                            print('no texture map found!')
+
                 visualization_parts(p, root_position, root_orientation, root_scale,  base_pred[0], position_pred_part, scale_pred_part, mesh_pred_part, parent_pred_part, texture_list, if_random, filename="output")
 
 
@@ -328,6 +472,7 @@ def main():
     device = "cuda"
     scene_name = "kitchens"
     if_random = False
+    texture = True
     physicsClient = p.connect(p.GUI)
     p.setGravity(0, 0, -10)
     p.configureDebugVisualizer(1, lightPosition=(1250, 100, 2000), rgbBackground=(1, 1, 1))
@@ -347,12 +492,12 @@ def main():
     urdformer_global.eval()
     urdformer_part.eval()
 
-
-
     for test_id in range(54):
         p.resetSimulation()
-        data_path = f"/assets/{scene_name}/labels/label{test_id}.npy" # replace it with your data path
-        evaluate(device, data_path, urdformer_global, urdformer_part, if_random)
+        asset_path = "/assets"
+        data_path = f"/{asset_path}/{scene_name}/labels/label{test_id}.npy" # replace it with your data path
+
+        evaluate(device, data_path, asset_path, test_id, urdformer_global, urdformer_part, if_random, texture)
 
 if __name__ == "__main__":
     main()

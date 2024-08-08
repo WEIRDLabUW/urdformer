@@ -159,7 +159,14 @@ python urdf_test.py --name label3.urdf
 ```
 change `label3.urdf` to your urdf filename that you want to visualize. 
 
-
+## Evaluation
+To see kitchen examples with labeled bboxes shown in the paper, use the following step to reproduce: 
+First, download and unzip the assets and labels used in the paper [link](https://drive.google.com/file/d/1aP6-XEzAGtmEBiDXangddSJ_IcvERlA4/view?usp=sharing).   
+replace `data_path` with your download path. Run:
+```bash
+python evaluate.py
+```
+This will show URDFormer predictions on 54 kitchen scenes using manually labeled bounding boxes. 
 
 ## Training
 

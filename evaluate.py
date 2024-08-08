@@ -351,7 +351,7 @@ def main():
 
     for test_id in range(54):
         p.resetSimulation()
-        data_path = f"{reality_gym_path}/assets/{scene_name}/labels/label{test_id}.npy" # replace it with your data path
+        data_path = f"/assets/{scene_name}/labels/label{test_id}.npy" # replace it with your data path
         evaluate(device, data_path, urdformer_global, urdformer_part, if_random)
 
 if __name__ == "__main__":

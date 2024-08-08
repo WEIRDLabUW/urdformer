@@ -391,7 +391,7 @@ def visualization_parts(p, root_position, root_orientation, root_scale, mesh_bas
     part_path = "meshes/parts/"
 
     # fix the oven fan problem: if there are parts, root shouldn't be oven fan
-    if len(position_pred_ori) > 0 and mesh_base == 6:
+    if len(position_pred_ori) > 1 and mesh_base == 6:
         mesh_base = 1
 
 

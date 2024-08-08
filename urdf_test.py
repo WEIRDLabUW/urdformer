@@ -11,7 +11,7 @@ physicsClient = p.connect(p.GUI)
 p.setGravity(0, 0, -10)
 
 p.configureDebugVisualizer(1, lightPosition=(5, 0, 5), rgbBackground=(1,1,1))
-l
+obj = p.loadURDF(f"output/{args.name}", [0, 0, 0], [0,0,0,1], useFixedBase=True)
 # visualization
 while True:
     for jid in range(p.getNumJoints(obj)):
